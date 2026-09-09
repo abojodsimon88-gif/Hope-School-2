@@ -29,8 +29,14 @@ CLASSES = [
     'صف 11', 'صف 12'
 ]
 
+# المواد الدراسية التي طلبتها
+SUBJECTS = [
+    'إنجليزي', 'جغرافيا', 'تاريخ', 'رياضيات', 'رياضة', 
+    'تكنولوجيا', 'عربي', 'علوم', 'تربية مسيحية', 'تربية إسلامية'
+]
+
 # قاعدة بيانات مؤقتة في الذاكرة
-SCHEDULES = {} # "اليوم-الصف" -> اسم المربي
+SCHEDULES = {} # مفتاحها "اليوم-الصف" -> يخزن (المربي والمادة)
 MESSAGES = []  # قائمة الرسائل
 
 # تخزين كلمات السر (افتراضياً الجميع كلمة سرهم '0000')
@@ -46,14 +52,16 @@ HTML_TEMPLATE = """
     <title>نظام مراسلة وجداول مدرسة أمل</title>
     <style>
         body { font-family: Tahoma, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         h1, h2 { color: #2c3e50; text-align: center; }
-        .btn { display: inline-block; background: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px; border: none; cursor: pointer; }
+        .btn { display: inline-block; background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 5px; margin: 3px; border: none; cursor: pointer; }
         .btn:hover { background: #2980b9; }
         .btn-danger { background: #e74c3c; }
         .btn-danger:hover { background: #c0392b; }
         .btn-success { background: #27ae60; }
         .btn-success:hover { background: #219653; }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #d68910; }
         table { width: 100%%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #2c3e50; color: white; }
@@ -81,7 +89,7 @@ HTML_TEMPLATE = """
                 <div class="success-msg">{{ success }}</div>
             {% endif %}
 
-            <!-- قسم تغيير كلمة السر لأي مستخدم -->
+            <!-- قسم تغيير كلمة السر -->
             <div class="card" style="background: #eef2f3;">
                 <h4>🔐 تغيير كلمة السر الخاصة بك (الافتراضية: 0000)</h4>
                 <form method="POST" action="/change_password" style="display: flex; gap: 10px; align-items: flex-end;">
@@ -93,14 +101,14 @@ HTML_TEMPLATE = """
                 </form>
             </div>
 
-            <!-- لوحة المدير: خضر (مع ميزة الاختيار المتعدد للرسائل) -->
+            <!-- لوحة المدير: خضر -->
             {% if session.get('user') == 'خضر' %}
                 <div class="card" style="border-right: 5px solid #27ae60;">
                     <h3>👑 لوحة تحكم المدير (خضر) - مراقبة شاملة</h3>
-                    <p>يمكنك الاطلاع على كافة الجداول وتحركات المراسلات، وإرسال رسائل فردية أو جماعية لأكثر من معلم دفعة واحدة.</p>
+                    <p>إرسال رسائل فردية أو جماعية لأكثر من معلم دفعة واحدة.</p>
                     
                     <form method="POST" action="/send_message">
-                        <label>إرسال رسالة إلى (اضغط مطولاً أو استمر بالضغط لاختيار أكثر من معلم أو الكل):</label>
+                        <label>إرسال رسالة إلى:</label>
                         <select name="receivers" multiple required>
                             <option value="الكل">--- إرسال إلى الجميع (الكل) ---</option>
                             {% for staff in all_staff %}
@@ -111,7 +119,7 @@ HTML_TEMPLATE = """
                         </select>
                         <label>نص الرسالة:</label>
                         <textarea name="msg_text" rows="3" required placeholder="اكتب رسالتك هنا..."></textarea>
-                        <button type="submit" class="btn">إرسال الرسالة للمعلمين المختارين</button>
+                        <button type="submit" class="btn">إرسال الرسالة للمختارين</button>
                     </form>
 
                     <h4 style="margin-top: 20px;">📨 سجل المراسلات العامة والواردة:</h4>
@@ -128,56 +136,73 @@ HTML_TEMPLATE = """
                 </div>
             {% endif %}
 
-            <!-- لوحة السكرتيرة: بريتا -->
+            <!-- لوحة السكرتيرة: بريتا (إضافة وتعديل الجداول والمواد) -->
             {% if session.get('user') == 'بريتا' %}
-                <div class="card" style="border-right: 5px solid #2980b9;">
-                    <h3>📋 لوحة السكرتيرة (بريتا) - إدارة الجداول</h3>
-                    <p>تحديد أماكن وجود المربين والمربيات في الصفوف والشعب حسب أيام الأسبوع.</p>
+                <div class="card" style="border-right: 5px solid #2980b9;" id="schedule-form-card">
+                    <h3>📋 لوحة السكرتيرة (بريتا) - إدارة الجداول والمواد</h3>
+                    <p>حدد اليوم، الصف، المعلم، والمادة الدراسية لإضافتها أو تعديلها.</p>
                     
                     <form method="POST" action="/update_schedule">
                         <label>اختر اليوم:</label>
-                        <select name="day">
+                        <select name="day" required>
                             {% for d in days %}
                                 <option value="{{ d }}">{{ d }}</option>
                             {% endfor %}
                         </select>
 
                         <label>اختر الصف / الشعبة:</label>
-                        <select name="class_name">
+                        <select name="class_name" required>
                             {% for c in classes %}
                                 <option value="{{ c }}">{{ c }}</option>
                             {% endfor %}
                         </select>
 
                         <label>اختر المربي / المربية:</label>
-                        <select name="teacher">
+                        <select name="teacher" required>
                             {% for t in staff_males + staff_females %}
                                 <option value="{{ t }}">{{ t }}</option>
                             {% endfor %}
                         </select>
 
-                        <button type="submit" class="btn">حفظ وتحديث الجدول</button>
+                        <label>اختر المادة الدراسية:</label>
+                        <select name="subject" required>
+                            {% for sub in subjects %}
+                                <option value="{{ sub }}">{{ sub }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <button type="submit" class="btn btn-success">حفظ أو تحديث بيانات الجدول</button>
                     </form>
                 </div>
             {% endif %}
 
-            <!-- عرض الجداول العامة للجميع -->
-            <h2>📅 جدول الحصص وتواجد المربين بالأيام والشعب</h2>
+            <!-- عرض الجداول العامة للجميع مع زر التعديل للسكرتيرة -->
+            <h2>📅 جدول الحصص وتواجد المربين والمواد بالأيام والشعب</h2>
             <table>
                 <tr>
                     <th>اليوم</th>
                     <th>الصف / الشعبة</th>
                     <th>المربي / المربية المسؤول</th>
+                    <th>المادة الدراسية</th>
+                    {% if session.get('user') == 'بريتا' %}
+                        <th>إجراءات التعديل</th>
+                    {% endif %}
                 </tr>
-                {% for key, teacher in schedules.items() %}
+                {% for key, data in schedules.items() %}
                     {% set parts = key.split('-') %}
                     <tr>
                         <td>{{ parts[0] }}</td>
                         <td>{{ parts[1] }}</td>
-                        <td><strong>{{ teacher }}</strong></td>
+                        <td><strong>{{ data.teacher }}</strong></td>
+                        <td><span style="background: #e2e8f0; padding: 3px 8px; border-radius: 4px;">{{ data.subject }}</span></td>
+                        {% if session.get('user') == 'بريتا' %}
+                            <td>
+                                <a href="/edit_schedule_item?day={{ parts[0] }}&class_name={{ parts[1] }}" class="btn btn-warning" style="padding: 3px 8px; font-size: 13px;">تعديل البيانات</a>
+                            </td>
+                        {% endif %}
                     </tr>
                 {% else %}
-                    <tr><td colspan="3">لم تقم السكرتيرة بإدخال أي جداول بعد.</td></tr>
+                    <tr><td colspan="{% if session.get('user') == 'بريتا' %}5{% else %}4{% endif %}">لم تقم السكرتيرة بإدخال أي جداول بعد.</td></tr>
                 {%- endfor %}
             </table>
 
@@ -243,6 +268,7 @@ def index():
     return render_template_string(HTML_TEMPLATE, 
                                   days=DAYS, 
                                   classes=CLASSES, 
+                                  subjects=SUBJECTS,
                                   staff_males=STAFF_MALES, 
                                   staff_females=STAFF_FEMALES,
                                   all_staff=ALL_STAFF,
@@ -282,9 +308,22 @@ def update_schedule():
         day = request.form.get('day')
         class_name = request.form.get('class_name')
         teacher = request.form.get('teacher')
+        subject = request.form.get('subject')
+        
         key = f"{day}-{class_name}"
-        SCHEDULES[key] = teacher
-    return redirect(url_for('index'))
+        SCHEDULES[key] = {'teacher': teacher, 'subject': subject}
+    return redirect(url_for('index', success='تم حفظ بيانات الجدول بنجاح!'))
+
+@app.route('/edit_schedule_item')
+def edit_schedule_item():
+    if session.get('user') == 'بريتا':
+        day = request.args.get('day')
+        class_name = request.args.get('class_name')
+        key = f"{day}-{class_name}"
+        if key in SCHEDULES:
+            # حذف السجل القديم لتسمية السكرتيرة بإعادة اختياره وتحديثه من الفورم
+            del SCHEDULES[key]
+    return redirect(url_for('index', success='قم بتعديل البيانات وإعادة حفظها من نموذج السكرتيرة أعلاه.'))
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
