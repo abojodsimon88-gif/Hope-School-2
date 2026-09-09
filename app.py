@@ -277,6 +277,7 @@ def logout():
     return redirect(url_for('index'))
 
 @app.route('/update_schedule', methods=['POST'])
+def update_schedule():
     if session.get('user') == 'بريتا':
         day = request.form.get('day')
         class_name = request.form.get('class_name')
