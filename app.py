@@ -6,17 +6,16 @@ app.secret_key = 'hope_school_secret_key_2026'
 
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
-# --- بيانات النظام الأساسية والصلاحيات ---
-ROLES = {
-    'المدير': 'خضر',
-    'السكرتيرة': 'بريتا',
-    'المرشد الاجتماعي': 'فؤاد'
-}
+# --- بيانات النظام الأساسية والصلاحيات مقسمة ومنظمة ---
+ROLE_MANAGER = 'خضر'        # المدير
+ROLE_SECRETARY = 'بريتا'    # السكرتيرة (تعديل الجدول)
+ROLE_SOCIAL = 'فؤاد'       # المرشد الاجتماعي
 
 STAFF_MALES = ['نزار', 'مايك', 'احمد', 'سابا', 'اندريس', 'وليد']
 STAFF_FEMALES = ['ليلى', 'لانا', 'نقول', 'ايفا', 'لورد', 'نوها', 'منال', 'خيلاء', 'دعاء', 'سلستي', 'نور', 'رزان', 'داليا', 'هايدي', 'نانسي', 'ميري', 'ريتا']
 
-ALL_STAFF = list(ROLES.values()) + STAFF_MALES + STAFF_FEMALES
+# تجمع كافة الأسماء لتسجيل الدخول وكلمات السر
+ALL_STAFF = [ROLE_MANAGER, ROLE_SECRETARY, ROLE_SOCIAL] + STAFF_MALES + STAFF_FEMALES
 
 DAYS = ['السبت', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس']
 
@@ -58,8 +57,6 @@ HTML_TEMPLATE = """
         .btn-danger:hover { background: #c0392b; }
         .btn-success { background: #27ae60; }
         .btn-success:hover { background: #219653; }
-        .btn-warning { background: #f39c12; color: white; }
-        .btn-warning:hover { background: #d68910; }
         table { width: 100%%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #2c3e50; color: white; }
@@ -99,8 +96,8 @@ HTML_TEMPLATE = """
                 </form>
             </div>
 
-            <!-- لوحة تحكم السكرتيرة (بريتا) - هي وحدها من تعدل جداول الحصص -->
-            {% if session.get('user') == 'بريتا' %}
+            <!-- لوحة تحكم السكرتيرة (بريتا) وحدها لتعديل الجدول -->
+            {% if session.get('user'] == 'بريتا' %}
                 <div class="card" style="background: #e8f8f5; border-right: 5px solid #27ae60;">
                     <h3>🛠️ لوحة تحكم السكرتيرة (توزيع الحصص وجداول المعلمين)</h3>
                     <form method="POST" action="/save_schedule">
@@ -120,9 +117,21 @@ HTML_TEMPLATE = """
 
                         <label>اختر المعلم:</label>
                         <select name="teacher" required>
-                            {% for t in all_staff %}
-                                <option value="{{ t }}">{{ t }}</option>
-                            {% endfor %}
+                            <optgroup label="الإدارة">
+                                <option value="خضر">خضر (المدير)</option>
+                                <option value="بريتا">بريتا (السكرتيرة)</option>
+                                <option value="فؤاد">فؤاد (المرشد الاجتماعي)</option>
+                            </optgroup>
+                            <optgroup label="المربيين (ذكور)">
+                                {% for t in staff_males %}
+                                    <option value="{{ t }}">{{ t }}</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="المربيات (إناث)">
+                                {% for t in staff_females %}
+                                    <option value="{{ t }}">{{ t }}</option>
+                                {% endfor %}
+                            </optgroup>
                         </select>
 
                         <label>المادة الدراسية:</label>
@@ -137,7 +146,7 @@ HTML_TEMPLATE = """
                 </div>
             {% endif %}
 
-            <!-- قسم إرسال الرسائل (متاح للمدير خضر وباقي الطاقم حسب الحاجة) -->
+            <!-- قسم إرسال الرسائل -->
             <div class="card">
                 <h3>💬 لوحة المراسلة الجماعية والفردية</h3>
                 <form method="POST" action="/send_message">
@@ -177,7 +186,7 @@ HTML_TEMPLATE = """
                 {% endfor %}
             </table>
 
-            <!-- جدول الحصص العام (يشاهده المدير خضر والجميع بوضوح) -->
+            <!-- جدول الحصص العام -->
             <h2 style="margin-top: 30px;">📅 جدول الحصص المدرسي</h2>
             <table>
                 <tr>
@@ -215,9 +224,21 @@ HTML_TEMPLATE = """
                     <label>اختر اسمك (المستخدم):</label>
                     <select name="username" required>
                         <option value="">--- اختر اسم المستخدم ---</option>
-                        {% for u in all_staff %}
-                            <option value="{{ u }}">{{ u }}</option>
-                        {% endfor %}
+                        <optgroup label="الإدارة">
+                            <option value="خضر">خضر (المدير)</option>
+                            <option value="بريتا">بريتا (السكرتيرة)</option>
+                            <option value="فؤاد">فؤاد (المرشد الاجتماعي)</option>
+                        </optgroup>
+                        <optgroup label="المربيين (ذكور)">
+                            {% for u in staff_males %}
+                                <option value="{{ u }}">{{ u }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="المربيات (إناث)">
+                            {% for u in staff_females %}
+                                <option value="{{ u }}">{{ u }}</option>
+                            {% endfor %}
+                        </optgroup>
                     </select>
 
                     <label>كلمة السر (الافتراضية: 0000):</label>
@@ -236,6 +257,8 @@ HTML_TEMPLATE = """
 def index():
     return render_template_string(HTML_TEMPLATE, 
                                   all_staff=ALL_STAFF, 
+                                  staff_males=STAFF_MALES,
+                                  staff_females=STAFF_FEMALES,
                                   days=DAYS, 
                                   classes=CLASSES, 
                                   subjects=SUBJECTS,
@@ -273,8 +296,8 @@ def change_password():
 
 @app.route('/save_schedule', methods=['POST'])
 def save_schedule():
-    # الصلاحية فقط للسكرتيرة (بريتا)
-    if session.get('user') == 'بريتا':
+    # التعديل فقط للسكرتيرة بريتا
+    if session.get('user'] == ROLE_SECRETARY:
         day = request.form.get('day')
         class_name = request.form.get('class_name')
         teacher = request.form.get('teacher')
