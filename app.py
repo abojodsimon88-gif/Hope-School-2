@@ -1,7 +1,11 @@
 from flask import Flask, render_template_string, request, redirect, url_for, session
+from datetime import timedelta
 
 app = Flask(__name__)
 app.secret_key = 'hope_school_secret_key_2026'
+
+# جعل الجلسة تنتهي بمجرد إغلاق المتصفح لضمان طلب كلمة السر دائماً
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
 # --- بيانات النظام الأساسية والصلاحيات ---
 ROLES = {
@@ -11,7 +15,8 @@ ROLES = {
 }
 
 STAFF_MALES = ['نزار', 'مايك', 'احمد', 'سابا', 'اندريس', 'وليد']
-STAFF_FEMALES = ['لانا', 'نقول', 'ايفا', 'لورد', 'نوها', 'منال', 'خيلاء', 'دعاء', 'سلستي', 'نور', 'رزان', 'داليا', 'هايدي', 'نانسي', 'ميري', 'ريتا']
+# أضفنا المعلمة "ليلى" ضمن قائمة المعلمات المربيات
+STAFF_FEMALES = ['ليلى', 'لانا', 'نقول', 'ايفا', 'لورد', 'نوها', 'منال', 'خيلاء', 'دعاء', 'سلستي', 'نور', 'رزان', 'داليا', 'هايدي', 'نانسي', 'ميري', 'ريتا']
 
 ALL_STAFF = list(ROLES.values()) + STAFF_MALES + STAFF_FEMALES
 
@@ -29,7 +34,7 @@ CLASSES = [
     'صف 11', 'صف 12'
 ]
 
-# المواد الدراسية التي طلبتها
+# المواد الدراسية
 SUBJECTS = [
     'إنجليزي', 'جغرافيا', 'تاريخ', 'رياضيات', 'رياضة', 
     'تكنولوجيا', 'عربي', 'علوم', 'تربية مسيحية', 'تربية إسلامية'
@@ -97,52 +102,15 @@ HTML_TEMPLATE = """
                         <label>كلمة السر الجديدة:</label>
                         <input type="password" name="new_password" required placeholder="أدخل كلمة السر الجديدة">
                     </div>
-                    <button type="submit" class="btn btn-success" style="height: 38px; margin: 0;">تحديث كلمة السر</button>
+                    <button type="submit" class="btn btn-success" style="height: 38px; margin-bottom: 15px;">تحديث</button>
                 </form>
             </div>
 
-            <!-- لوحة المدير: خضر -->
+            <!-- لوحة التحكم للمدير (إدارة الجداول) -->
             {% if session.get('user') == 'خضر' %}
-                <div class="card" style="border-right: 5px solid #27ae60;">
-                    <h3>👑 لوحة تحكم المدير (خضر) - مراقبة شاملة</h3>
-                    <p>إرسال رسائل فردية أو جماعية لأكثر من معلم دفعة واحدة.</p>
-                    
-                    <form method="POST" action="/send_message">
-                        <label>إرسال رسالة إلى:</label>
-                        <select name="receivers" multiple required>
-                            <option value="الكل">--- إرسال إلى الجميع (الكل) ---</option>
-                            {% for staff in all_staff %}
-                                {% if staff != 'خضر' %}
-                                    <option value="{{ staff }}">{{ staff }}</option>
-                                {% endif %}
-                            {% endfor %}
-                        </select>
-                        <label>نص الرسالة:</label>
-                        <textarea name="msg_text" rows="3" required placeholder="اكتب رسالتك هنا..."></textarea>
-                        <button type="submit" class="btn">إرسال الرسالة للمختارين</button>
-                    </form>
-
-                    <h4 style="margin-top: 20px;">📨 سجل المراسلات العامة والواردة:</h4>
-                    <table>
-                        <tr><th>المرسل</th><th>المستقبل</th><th>النص</th></tr>
-                        {% for m in messages %}
-                        <tr>
-                            <td>{{ m.sender }}</td>
-                            <td>{{ m.receiver }}</td>
-                            <td>{{ m.text }}</td>
-                        </tr>
-                        {% endfor %}
-                    </table>
-                </div>
-            {% endif %}
-
-            <!-- لوحة السكرتيرة: بريتا (إضافة وتعديل الجداول والمواد) -->
-            {% if session.get('user') == 'بريتا' %}
-                <div class="card" style="border-right: 5px solid #2980b9;" id="schedule-form-card">
-                    <h3>📋 لوحة السكرتيرة (بريتا) - إدارة الجداول والمواد</h3>
-                    <p>حدد اليوم، الصف، المعلم، والمادة الدراسية لإضافتها أو تعديلها.</p>
-                    
-                    <form method="POST" action="/update_schedule">
+                <div class="card" style="background: #e8f8f5; border-right: 5px solid #27ae60;">
+                    <h3>🛠️ لوحة تحكم المدير (توزيع الحصص والجداول)</h3>
+                    <form method="POST" action="/save_schedule">
                         <label>اختر اليوم:</label>
                         <select name="day" required>
                             {% for d in days %}
@@ -150,111 +118,119 @@ HTML_TEMPLATE = """
                             {% endfor %}
                         </select>
 
-                        <label>اختر الصف / الشعبة:</label>
+                        <label>اختر الصف:</label>
                         <select name="class_name" required>
                             {% for c in classes %}
                                 <option value="{{ c }}">{{ c }}</option>
                             {% endfor %}
                         </select>
 
-                        <label>اختر المربي / المربية:</label>
+                        <label>اختر المعلم المربي:</label>
                         <select name="teacher" required>
-                            {% for t in staff_males + staff_females %}
+                            {% for t in all_staff %}
                                 <option value="{{ t }}">{{ t }}</option>
                             {% endfor %}
                         </select>
 
-                        <label>اختر المادة الدراسية:</label>
+                        <label>المادة الدراسية:</label>
                         <select name="subject" required>
-                            {% for sub in subjects %}
-                                <option value="{{ sub }}">{{ sub }}</option>
+                            {% for s in subjects %}
+                                <option value="{{ s }}">{{ s }}</option>
                             {% endfor %}
                         </select>
 
-                        <button type="submit" class="btn btn-success">حفظ أو تحديث بيانات الجدول</button>
+                        <button type="submit" class="btn btn-success">حفظ وتحديث الجدول</button>
                     </form>
                 </div>
             {% endif %}
 
-            <!-- عرض الجداول العامة للجميع مع زر التعديل للسكرتيرة -->
-            <h2>📅 جدول الحصص وتواجد المربين والمواد بالأيام والشعب</h2>
-            <table>
-                <tr>
-                    <th>اليوم</th>
-                    <th>الصف / الشعبة</th>
-                    <th>المربي / المربية المسؤول</th>
-                    <th>المادة الدراسية</th>
-                    {% if session.get('user') == 'بريتا' %}
-                        <th>إجراءات التعديل</th>
-                    {% endif %}
-                </tr>
-                {% for key, data in schedules.items() %}
-                    {% set parts = key.split('-') %}
-                    <tr>
-                        <td>{{ parts[0] }}</td>
-                        <td>{{ parts[1] }}</td>
-                        <td><strong>{{ data.teacher }}</strong></td>
-                        <td><span style="background: #e2e8f0; padding: 3px 8px; border-radius: 4px;">{{ data.subject }}</span></td>
-                        {% if session.get('user') == 'بريتا' %}
-                            <td>
-                                <a href="/edit_schedule_item?day={{ parts[0] }}&class_name={{ parts[1] }}" class="btn btn-warning" style="padding: 3px 8px; font-size: 13px;">تعديل البيانات</a>
-                            </td>
-                        {% endif %}
-                    </tr>
-                {% else %}
-                    <tr><td colspan="{% if session.get('user') == 'بريتا' %}5{% else %}4{% endif %}">لم تقم السكرتيرة بإدخال أي جداول بعد.</td></tr>
-                {%- endfor %}
-            </table>
-
-            <!-- قسم الرسائل الخاصة للمعلمين والآخرين -->
-            {% if session.get('user') != 'خضر' %}
-                <div class="card" style="margin-top: 20px;">
-                    <h3>📥 صندوق الوارد (رسائلي)</h3>
-                    <table>
-                        <tr><th>من المرُسل</th><th>الرسالة</th></tr>
-                        {% for m in messages %}
-                            {% if m.receiver == 'الكل' or session.get('user') in m.receiver.split(', ') %}
-                            <tr>
-                                <td>{{ m.sender }}</td>
-                                <td>{{ m.text }}</td>
-                            </tr>
+            <!-- قسم إرسال الرسائل -->
+            <div class="card">
+                <h3>💬 لوحة المراسلة الجماعية والفردية</h3>
+                <form method="POST" action="/send_message">
+                    <label>اختر المرسل إليهم (حدد عدة أسماء بالضغط مع الاستمرار):</label>
+                    <select name="recipients" multiple required>
+                        <option value="ALL_STAFF">📢 جميع الهيئة التدريسية والإدارية</option>
+                        {% for t in all_staff %}
+                            {% if t != session.get('user') %}
+                                <option value="{{ t }}">{{ t }}</option>
                             {% endif %}
                         {% endfor %}
-                    </table>
-                </div>
-            {% endif %}
+                    </select>
+
+                    <label>نص الرسالة أو التنبيه:</label>
+                    <textarea name="message_text" rows="3" required placeholder="اكتب رسالتك أو التنبيه هنا..."></textarea>
+
+                    <button type="submit" class="btn">إرسال الرسالة</button>
+                </form>
+            </div>
+
+            <!-- صندوق الوارد (الرسائل الواردة للمستخدم) -->
+            <h2>📥 صندوق الوارد الخاص بك</h2>
+            <table>
+                <tr>
+                    <th>من المرسل</th>
+                    <th>محتوى الرسالة</th>
+                    <th>الوقت</th>
+                </tr>
+                {% for msg in messages %}
+                    {% if msg.to == session.get('user') or msg.to == 'ALL_STAFF' %}
+                        <tr>
+                            <td><strong>{{ msg.from }}</strong></td>
+                            <td>{{ msg.text }}</td>
+                            <td>{{ msg.time }}</td>
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+            </table>
+
+            <!-- جدول الحصص العام -->
+            <h2 style="margin-top: 30px;">📅 جدول الحصص المدرسي</h2>
+            <table>
+                <tr>
+                    <th>اليوم / الصف</th>
+                    {% for c in classes %}
+                        <th>{{ c }}</th>
+                    {% endfor %}
+                </tr>
+                {% for d in days %}
+                    <tr>
+                        <td><strong>{{ d }}</strong></td>
+                        {% for c in classes %}
+                            <td>
+                                {% set key = d ~ '-' ~ c %}
+                                {% if key in schedules %}
+                                    <span style="color: #2980b9; font-weight: bold;">{{ schedules[key].teacher }}</span><br>
+                                    <span style="font-size: 12px; color: #555;">({{ schedules[key].subject }})</span>
+                                {% else %}
+                                    <span style="color: #999;">-</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </table>
 
         {% else %}
             <!-- صفحة تسجيل الدخول -->
-            <div class="card" style="max-width: 400px; margin: 40px auto; text-align: center;">
-                <h2>تسجيل الدخول للنظام</h2>
+            <div class="card" style="max-width: 350px; margin: 40px auto; text-align: center;">
+                <h2>تسجيل الدخول</h2>
                 {% if error %}
                     <div class="error">{{ error }}</div>
                 {% endif %}
                 <form method="POST" action="/login">
-                    <label>اختر اسمك أو صلاحيتك:</label>
-                    <select name="username">
-                        <optgroup label="الإدارة والإرشاد">
-                            <option value="خضر">المدير: خضر</option>
-                            <option value="بريتا">السكرتيرة: بريتا</option>
-                            <option value="فؤاد">المرشد الاجتماعي: فؤاد</option>
-                        </optgroup>
-                        <optgroup label="المربون">
-                            {% for t in staff_males %}
-                                <option value="{{ t }}">{{ t }}</option>
-                            {% endfor %}
-                        </optgroup>
-                        <optgroup label="المربيات">
-                            {% for t in staff_females %}
-                                <option value="{{ t }}">{{ t }}</option>
-                            {% endfor %}
-                        </optgroup>
+                    <label>اختر اسمك (المستخدم):</label>
+                    <select name="username" required>
+                        <option value="">--- اختر اسم المستخدم ---</option>
+                        {% for u in all_staff %}
+                            <option value="{{ u }}">{{ u }}</option>
+                        {% endfor %}
                     </select>
 
                     <label>كلمة السر (الافتراضية: 0000):</label>
                     <input type="password" name="password" required placeholder="أدخل كلمة السر">
 
-                    <button type="submit" class="btn" style="width: 100%%;">دخول للنظام</button>
+                    <button type="submit" class="btn" style="width: 100%;">دخول للنظام</button>
                 </form>
             </div>
         {% endif %}
@@ -266,12 +242,10 @@ HTML_TEMPLATE = """
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE, 
+                                  all_staff=ALL_STAFF, 
                                   days=DAYS, 
                                   classes=CLASSES, 
                                   subjects=SUBJECTS,
-                                  staff_males=STAFF_MALES, 
-                                  staff_females=STAFF_FEMALES,
-                                  all_staff=ALL_STAFF,
                                   schedules=SCHEDULES,
                                   messages=MESSAGES,
                                   error=request.args.get('error'),
@@ -282,56 +256,62 @@ def login():
     username = request.form.get('username')
     password = request.form.get('password')
     
-    if username in ALL_STAFF and PASSWORDS.get(username) == password:
+    if username in PASSWORDS and PASSWORDS[username] == password:
+        session.permanent = True
         session['user'] = username
         return redirect(url_for('index'))
     else:
-        return redirect(url_for('index', error='كلمة السر غير صحيحة! كلمة السر الافتراضية للجميع هي 0000'))
-
-@app.route('/change_password', methods=['POST'])
-def change_password():
-    if session.get('user'):
-        new_pass = request.form.get('new_password')
-        if new_pass:
-            PASSWORDS[session['user']] = new_pass
-            return redirect(url_for('index', success='تم تحديث كلمة السر بنجاح!'))
-    return redirect(url_for('index', error='حدث خطأ أثناء تغيير كلمة السر'))
+        return redirect(url_for('index', error='خطأ في اسم المستخدم أو كلمة السر!'))
 
 @app.route('/logout')
 def logout():
     session.pop('user', None)
     return redirect(url_for('index'))
 
-@app.route('/update_schedule', methods=['POST'])
-def update_schedule():
-    if session.get('user') == 'بريتا':
+@app.route('/change_password', methods=['POST'])
+def change_password():
+    if session.get('user'):
+        new_pass = request.form.get('new_password')
+        current_user = session.get('user')
+        if new_pass:
+            PASSWORDS[current_user] = new_pass
+            return redirect(url_for('index', success='تم تحديث كلمة السر بنجاح!'))
+    return redirect(url_for('index', error='حدث خطأ أثناء تحديث كلمة السر'))
+
+@app.route('/save_schedule', methods=['POST'])
+def save_schedule():
+    if session.get('user') == 'خضر':
         day = request.form.get('day')
         class_name = request.form.get('class_name')
         teacher = request.form.get('teacher')
         subject = request.form.get('subject')
         
         key = f"{day}-{class_name}"
-        SCHEDULES[key] = {'teacher': teacher, 'subject': subject}
-    return redirect(url_for('index', success='تم حفظ بيانات الجدول بنجاح!'))
-
-@app.route('/edit_schedule_item')
-def edit_schedule_item():
-    if session.get('user') == 'بريتا':
-        day = request.args.get('day')
-        class_name = request.args.get('class_name')
-        key = f"{day}-{class_name}"
-        if key in SCHEDULES:
-            # حذف السجل القديم لتسمية السكرتيرة بإعادة اختياره وتحديثه من الفورم
-            del SCHEDULES[key]
-    return redirect(url_for('index', success='قم بتعديل البيانات وإعادة حفظها من نموذج السكرتيرة أعلاه.'))
+        SCHEDULES[key] = {
+            'teacher': teacher,
+            'subject': subject
+        }
+        return redirect(url_for('index', success='تم تحديث جدول الحصص بنجاح!'))
+    return redirect(url_for('index', error='غير مسموح لك بهذا الإجراء!'))
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
-    if session.get('user') == 'خضر':
-        receivers_list = request.form.getlist('receivers')
-        text = request.form.get('msg_text')
-        receiver_str = ", ".join(receivers_list)
-        MESSAGES.insert(0, {'sender': 'المدير (خضر)', 'receiver': receiver_str, 'text': text})
+    if session.get('user'):
+        sender = session.get('user')
+        recipients = request.form.getlist('recipients')
+        message_text = request.form.get('message_text')
+        
+        from datetime import datetime
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M')
+        
+        for rec in recipients:
+            MESSAGES.insert(0, {
+                'from': sender,
+                'to': rec,
+                'text': message_text,
+                'time': current_time
+            })
+        return redirect(url_for('index', success='تم إرسال الرسالة بنجاح!'))
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
