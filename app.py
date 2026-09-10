@@ -1,22 +1,19 @@
 from flask import Flask, render_template_string, request, redirect, url_for, session
-from datetime import timedelta
 
 app = Flask(__name__)
 app.secret_key = 'hope_school_secret_key_2026'
 
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+# --- بيانات النظام الأساسية والصلاحيات ---
+ROLES = {
+    'المدير': 'خضر',
+    'السكرتيرة': 'بريتا',
+    'المرشد الاجتماعي': 'فؤاد'
+}
 
-# --- الإدارة (غير مربيين كمواد صفية) ---
-ROLE_MANAGER = 'خضر'        # المدير
-ROLE_SECRETARY = 'بريتا'    # السكرتيرة (تعديل الجدول)
-ROLE_SOCIAL = 'فؤاد'       # المرشد الاجتماعي
-
-# --- الطاقم والمعلمين (المربيين) ---
 STAFF_MALES = ['نزار', 'مايك', 'احمد', 'سابا', 'اندريس', 'وليد']
-STAFF_FEMALES = ['ليلى', 'لانا', 'نقول', 'ايفا', 'لورد', 'نوها', 'منال', 'خيلاء', 'دعاء', 'سلستي', 'نور', 'رزان', 'داليا', 'هايدي', 'نانسي', 'ميري', 'ريتا']
+STAFF_FEMALES = ['لانا', 'نقول', 'ايفا', 'لورد', 'نوها', 'منال', 'خيلاء', 'دعاء', 'سلستي', 'نور', 'رزان', 'داليا', 'هايدي', 'نانسي', 'ميري', 'ريتا']
 
-# الترتيب العام الموحد لتسجيل الدخول
-ALL_STAFF = [ROLE_MANAGER, ROLE_SECRETARY, ROLE_SOCIAL] + STAFF_MALES + STAFF_FEMALES
+ALL_STAFF = list(ROLES.values()) + STAFF_MALES + STAFF_FEMALES
 
 DAYS = ['السبت', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس']
 
@@ -32,66 +29,45 @@ CLASSES = [
     'صف 11', 'صف 12'
 ]
 
+# المواد الدراسية التي طلبتها
 SUBJECTS = [
     'إنجليزي', 'جغرافيا', 'تاريخ', 'رياضيات', 'رياضة', 
     'تكنولوجيا', 'عربي', 'علوم', 'تربية مسيحية', 'تربية إسلامية'
 ]
 
-SCHEDULES = {} 
-MESSAGES = []  
+# قاعدة بيانات مؤقتة في الذاكرة
+SCHEDULES = {} # مفتاحها "اليوم-الصف" -> يخزن (المربي والمادة)
+MESSAGES = []  # قائمة الرسائل
+
+# تخزين كلمات السر (افتراضياً الجميع كلمة سرهم '0000')
 PASSWORDS = {user: '0000' for user in ALL_STAFF}
 
+# --- الواجهات البرمجية (HTML داخلي مرتب) ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>نظام مراسلة وجداول مدرسة أمل</title>
     <style>
-        /* تثبيت الشاشة لمنع الحركة الأفقية يمين ويسار نهائياً */
-        html, body {
-            width: 100%;
-            overflow-x: hidden;
-            margin: 0;
-            padding: 0;
-        }
-        body { 
-            font-family: Tahoma, sans-serif; 
-            background-color: #f4f7f6; 
-            padding: 10px; 
-            color: #333; 
-            box-sizing: border-box;
-        }
-        .container { 
-            max-width: 100%; 
-            width: 100%;
-            margin: auto; 
-            background: white; 
-            padding: 15px; 
-            border-radius: 10px; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
-            box-sizing: border-box;
-        }
-        h1, h2 { color: #2c3e50; text-align: center; font-size: 22px; }
+        body { font-family: Tahoma, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #2c3e50; text-align: center; }
         .btn { display: inline-block; background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 5px; margin: 3px; border: none; cursor: pointer; }
         .btn:hover { background: #2980b9; }
         .btn-danger { background: #e74c3c; }
+        .btn-danger:hover { background: #c0392b; }
         .btn-success { background: #27ae60; }
-        
-        .table-responsive {
-            width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin-top: 15px;
-        }
-        table { width: 100%; border-collapse: collapse; min-width: 600px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 14px; }
+        .btn-success:hover { background: #219653; }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #d68910; }
+        table { width: 100%%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
         th { background-color: #2c3e50; color: white; }
-        
-        select, input, textarea { width: 100%; padding: 8px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: Tahoma; }
+        select, input, textarea { width: 100%%; padding: 8px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: Tahoma; }
         select[multiple] { height: 130px; background: #f8fafc; }
-        .card { background: #ecf0f1; padding: 12px; border-radius: 6px; margin-bottom: 15px; box-sizing: border-box; }
+        .card { background: #ecf0f1; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
         .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; }
         .success-msg { background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; }
     </style>
@@ -116,20 +92,57 @@ HTML_TEMPLATE = """
             <!-- قسم تغيير كلمة السر -->
             <div class="card" style="background: #eef2f3;">
                 <h4>🔐 تغيير كلمة السر الخاصة بك (الافتراضية: 0000)</h4>
-                <form method="POST" action="/change_password" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 200px; margin: 0;">
+                <form method="POST" action="/change_password" style="display: flex; gap: 10px; align-items: flex-end;">
+                    <div style="flex: 1; margin: 0;">
                         <label>كلمة السر الجديدة:</label>
                         <input type="password" name="new_password" required placeholder="أدخل كلمة السر الجديدة">
                     </div>
-                    <button type="submit" class="btn btn-success" style="height: 38px; margin-bottom: 15px;">تحديث</button>
+                    <button type="submit" class="btn btn-success" style="height: 38px; margin: 0;">تحديث كلمة السر</button>
                 </form>
             </div>
 
-            <!-- لوحة تحكم السكرتيرة (بريتا) وحدها لتعديل الجدول -->
+            <!-- لوحة المدير: خضر -->
+            {% if session.get('user') == 'خضر' %}
+                <div class="card" style="border-right: 5px solid #27ae60;">
+                    <h3>👑 لوحة تحكم المدير (خضر) - مراقبة شاملة</h3>
+                    <p>إرسال رسائل فردية أو جماعية لأكثر من معلم دفعة واحدة.</p>
+                    
+                    <form method="POST" action="/send_message">
+                        <label>إرسال رسالة إلى:</label>
+                        <select name="receivers" multiple required>
+                            <option value="الكل">--- إرسال إلى الجميع (الكل) ---</option>
+                            {% for staff in all_staff %}
+                                {% if staff != 'خضر' %}
+                                    <option value="{{ staff }}">{{ staff }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <label>نص الرسالة:</label>
+                        <textarea name="msg_text" rows="3" required placeholder="اكتب رسالتك هنا..."></textarea>
+                        <button type="submit" class="btn">إرسال الرسالة للمختارين</button>
+                    </form>
+
+                    <h4 style="margin-top: 20px;">📨 سجل المراسلات العامة والواردة:</h4>
+                    <table>
+                        <tr><th>المرسل</th><th>المستقبل</th><th>النص</th></tr>
+                        {% for m in messages %}
+                        <tr>
+                            <td>{{ m.sender }}</td>
+                            <td>{{ m.receiver }}</td>
+                            <td>{{ m.text }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            {% endif %}
+
+            <!-- لوحة السكرتيرة: بريتا (إضافة وتعديل الجداول والمواد) -->
             {% if session.get('user') == 'بريتا' %}
-                <div class="card" style="background: #e8f8f5; border-right: 5px solid #27ae60;">
-                    <h3>🛠️ لوحة تحكم السكرتيرة (توزيع الحصص وجداول المعلمين)</h3>
-                    <form method="POST" action="/save_schedule">
+                <div class="card" style="border-right: 5px solid #2980b9;" id="schedule-form-card">
+                    <h3>📋 لوحة السكرتيرة (بريتا) - إدارة الجداول والمواد</h3>
+                    <p>حدد اليوم، الصف، المعلم، والمادة الدراسية لإضافتها أو تعديلها.</p>
+                    
+                    <form method="POST" action="/update_schedule">
                         <label>اختر اليوم:</label>
                         <select name="day" required>
                             {% for d in days %}
@@ -137,140 +150,103 @@ HTML_TEMPLATE = """
                             {% endfor %}
                         </select>
 
-                        <label>اختر الصف:</label>
+                        <label>اختر الصف / الشعبة:</label>
                         <select name="class_name" required>
                             {% for c in classes %}
                                 <option value="{{ c }}">{{ c }}</option>
                             {% endfor %}
                         </select>
 
-                        <label>اختر المعلم:</label>
+                        <label>اختر المربي / المربية:</label>
                         <select name="teacher" required>
-                            <optgroup label="المربيين (ذكور)">
-                                {% for t in staff_males %}
-                                    <option value="{{ t }}">{{ t }}</option>
-                                {% endfor %}
-                            </optgroup>
-                            <optgroup label="المربيات (إناث)">
-                                {% for t in staff_females %}
-                                    <option value="{{ t }}">{{ t }}</option>
-                                {% endfor %}
-                            </optgroup>
-                        </select>
-
-                        <label>المادة الدراسية:</label>
-                        <select name="subject" required>
-                            {% for s in subjects %}
-                                <option value="{{ s }}">{{ s }}</option>
+                            {% for t in staff_males + staff_females %}
+                                <option value="{{ t }}">{{ t }}</option>
                             {% endfor %}
                         </select>
 
-                        <button type="submit" class="btn btn-success" style="width: 100%;">حفظ وتحديث الجدول</button>
+                        <label>اختر المادة الدراسية:</label>
+                        <select name="subject" required>
+                            {% for sub in subjects %}
+                                <option value="{{ sub }}">{{ sub }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <button type="submit" class="btn btn-success">حفظ أو تحديث بيانات الجدول</button>
                     </form>
                 </div>
             {% endif %}
 
-            <!-- قسم إرسال الرسائل -->
-            <div class="card">
-                <h3>💬 لوحة المراسلة الجماعية والفردية</h3>
-                <form method="POST" action="/send_message">
-                    <label>اختر المرسل إليهم (حدد عدة أسماء بالضغط مع الاستمرار):</label>
-                    <select name="recipients" multiple required>
-                        <option value="ALL_STAFF">📢 جميع الهيئة التدريسية والإدارية</option>
-                        <option value="خضر">خضر (المدير)</option>
-                        <option value="بريتا">بريتا (السكرتيرة)</option>
-                        <option value="فؤاد">فؤاد (المرشد الاجتماعي)</option>
-                        {% for t in staff_males %}
-                            {% if t != session.get('user') %}
-                                <option value="{{ t }}">{{ t }}</option>
-                            {% endif %}
-                        {% endfor %}
-                        {% for t in staff_females %}
-                            {% if t != session.get('user') %}
-                                <option value="{{ t }}">{{ t }}</option>
-                            {% endif %}
-                        {% endfor %}
-                    </select>
-
-                    <label>نص الرسالة أو التنبيه:</label>
-                    <textarea name="message_text" rows="3" required placeholder="اكتب رسالتك أو التنبيه هنا..."></textarea>
-
-                    <button type="submit" class="btn" style="width: 100%;">إرسال الرسالة</button>
-                </form>
-            </div>
-
-            <!-- صندوق الوارد -->
-            <h2>📥 صندوق الوارد الخاص بك</h2>
-            <div class="table-responsive">
-                <table>
+            <!-- عرض الجداول العامة للجميع مع زر التعديل للسكرتيرة -->
+            <h2>📅 جدول الحصص وتواجد المربين والمواد بالأيام والشعب</h2>
+            <table>
+                <tr>
+                    <th>اليوم</th>
+                    <th>الصف / الشعبة</th>
+                    <th>المربي / المربية المسؤول</th>
+                    <th>المادة الدراسية</th>
+                    {% if session.get('user') == 'بريتا' %}
+                        <th>إجراءات التعديل</th>
+                    {% endif %}
+                </tr>
+                {% for key, data in schedules.items() %}
+                    {% set parts = key.split('-') %}
                     <tr>
-                        <th>من المرسل</th>
-                        <th>محتوى الرسالة</th>
-                        <th>الوقت</th>
-                    </tr>
-                    {% for msg in messages %}
-                        {% if msg.to == session.get('user') or msg.to == 'ALL_STAFF' %}
-                            <tr>
-                                <td><strong>{{ msg.from }}</strong></td>
-                                <td>{{ msg.text }}</td>
-                                <td>{{ msg.time }}</td>
-                            </tr>
+                        <td>{{ parts[0] }}</td>
+                        <td>{{ parts[1] }}</td>
+                        <td><strong>{{ data.teacher }}</strong></td>
+                        <td><span style="background: #e2e8f0; padding: 3px 8px; border-radius: 4px;">{{ data.subject }}</span></td>
+                        {% if session.get('user') == 'بريتا' %}
+                            <td>
+                                <a href="/edit_schedule_item?day={{ parts[0] }}&class_name={{ parts[1] }}" class="btn btn-warning" style="padding: 3px 8px; font-size: 13px;">تعديل البيانات</a>
+                            </td>
                         {% endif %}
-                    {% endfor %}
-                </table>
-            </div>
-
-            <!-- جدول الحصص العام -->
-            <h2 style="margin-top: 30px;">📅 جدول الحصص المدرسي</h2>
-            <div class="table-responsive">
-                <table>
-                    <tr>
-                        <th>اليوم / الصف</th>
-                        {% for c in classes %}
-                            <th>{{ c }}</th>
-                        {% endfor %}
                     </tr>
-                    {% for d in days %}
-                        <tr>
-                            <td><strong>{{ d }}</strong></td>
-                            {% for c in classes %}
-                                <td>
-                                    {% set key = d ~ '-' ~ c %}
-                                    {% if key in schedules %}
-                                        <span style="color: #2980b9; font-weight: bold;">{{ schedules[key].teacher }}</span><br>
-                                        <span style="font-size: 11px; color: #555;">({{ schedules[key].subject }})</span>
-                                    {% else %}
-                                        <span style="color: #999;">-</span>
-                                    {% endif %}
-                                </td>
-                            {% endfor %}
-                        </tr>
-                    {% endfor %}
-                </table>
-            </div>
+                {% else %}
+                    <tr><td colspan="{% if session.get('user') == 'بريتا' %}5{% else %}4{% endif %}">لم تقم السكرتيرة بإدخال أي جداول بعد.</td></tr>
+                {%- endfor %}
+            </table>
+
+            <!-- قسم الرسائل الخاصة للمعلمين والآخرين -->
+            {% if session.get('user') != 'خضر' %}
+                <div class="card" style="margin-top: 20px;">
+                    <h3>📥 صندوق الوارد (رسائلي)</h3>
+                    <table>
+                        <tr><th>من المرُسل</th><th>الرسالة</th></tr>
+                        {% for m in messages %}
+                            {% if m.receiver == 'الكل' or session.get('user') in m.receiver.split(', ') %}
+                            <tr>
+                                <td>{{ m.sender }}</td>
+                                <td>{{ m.text }}</td>
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </table>
+                </div>
+            {% endif %}
 
         {% else %}
             <!-- صفحة تسجيل الدخول -->
-            <div class="card" style="max-width: 350px; margin: 20px auto; text-align: center;">
-                <h2>تسجيل الدخول</h2>
+            <div class="card" style="max-width: 400px; margin: 40px auto; text-align: center;">
+                <h2>تسجيل الدخول للنظام</h2>
                 {% if error %}
                     <div class="error">{{ error }}</div>
                 {% endif %}
                 <form method="POST" action="/login">
-                    <label>اختر اسمك (المستخدم):</label>
-                    <select name="username" required>
-                        <option value="">--- اختر اسم المستخدم ---</option>
-                        <option value="خضر">خضر (المدير)</option>
-                        <option value="بريتا">بريتا (السكرتيرة)</option>
-                        <option value="فؤاد">فؤاد (المرشد الاجتماعي)</option>
-                        <optgroup label="المربيين (ذكور)">
-                            {% for u in staff_males %}
-                                <option value="{{ u }}">{{ u }}</option>
+                    <label>اختر اسمك أو صلاحيتك:</label>
+                    <select name="username">
+                        <optgroup label="الإدارة والإرشاد">
+                            <option value="خضر">المدير: خضر</option>
+                            <option value="بريتا">السكرتيرة: بريتا</option>
+                            <option value="فؤاد">المرشد الاجتماعي: فؤاد</option>
+                        </optgroup>
+                        <optgroup label="المربون">
+                            {% for t in staff_males %}
+                                <option value="{{ t }}">{{ t }}</option>
                             {% endfor %}
                         </optgroup>
-                        <optgroup label="المربيات (إناث)">
-                            {% for u in staff_females %}
-                                <option value="{{ u }}">{{ u }}</option>
+                        <optgroup label="المربيات">
+                            {% for t in staff_females %}
+                                <option value="{{ t }}">{{ t }}</option>
                             {% endfor %}
                         </optgroup>
                     </select>
@@ -278,7 +254,7 @@ HTML_TEMPLATE = """
                     <label>كلمة السر (الافتراضية: 0000):</label>
                     <input type="password" name="password" required placeholder="أدخل كلمة السر">
 
-                    <button type="submit" class="btn" style="width: 100%;">دخول للنظام</button>
+                    <button type="submit" class="btn" style="width: 100%%;">دخول للنظام</button>
                 </form>
             </div>
         {% endif %}
@@ -290,12 +266,12 @@ HTML_TEMPLATE = """
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE, 
-                                  all_staff=ALL_STAFF, 
-                                  staff_males=STAFF_MALES,
-                                  staff_females=STAFF_FEMALES,
                                   days=DAYS, 
                                   classes=CLASSES, 
                                   subjects=SUBJECTS,
+                                  staff_males=STAFF_MALES, 
+                                  staff_females=STAFF_FEMALES,
+                                  all_staff=ALL_STAFF,
                                   schedules=SCHEDULES,
                                   messages=MESSAGES,
                                   error=request.args.get('error'),
@@ -306,63 +282,56 @@ def login():
     username = request.form.get('username')
     password = request.form.get('password')
     
-    if username in PASSWORDS and PASSWORDS[username] == password:
-        session.permanent = True
+    if username in ALL_STAFF and PASSWORDS.get(username) == password:
         session['user'] = username
         return redirect(url_for('index'))
     else:
-        return redirect(url_for('index', error='خطأ في اسم المستخدم أو كلمة السر!'))
+        return redirect(url_for('index', error='كلمة السر غير صحيحة! كلمة السر الافتراضية للجميع هي 0000'))
+
+@app.route('/change_password', methods=['POST'])
+def change_password():
+    if session.get('user'):
+        new_pass = request.form.get('new_password')
+        if new_pass:
+            PASSWORDS[session['user']] = new_pass
+            return redirect(url_for('index', success='تم تحديث كلمة السر بنجاح!'))
+    return redirect(url_for('index', error='حدث خطأ أثناء تغيير كلمة السر'))
 
 @app.route('/logout')
 def logout():
     session.pop('user', None)
     return redirect(url_for('index'))
 
-@app.route('/change_password', methods=['POST'])
-def change_password():
-    if session.get('user'):
-        new_pass = request.form.get('new_password')
-        current_user = session.get('user')
-        if new_pass:
-            PASSWORDS[current_user] = new_pass
-            return redirect(url_for('index', success='تم تحديث كلمة السر بنجاح!'))
-    return redirect(url_for('index', error='حدث خطأ أثناء تحديث كلمة السر'))
-
-@app.route('/save_schedule', methods=['POST'])
-def save_schedule():
-    # التعديل فقط للسكرتيرة بريتا
-    if session.get('user') == ROLE_SECRETARY:
+@app.route('/update_schedule', methods=['POST'])
+def update_schedule():
+    if session.get('user') == 'بريتا':
         day = request.form.get('day')
         class_name = request.form.get('class_name')
         teacher = request.form.get('teacher')
         subject = request.form.get('subject')
         
         key = f"{day}-{class_name}"
-        SCHEDULES[key] = {
-            'teacher': teacher,
-            'subject': subject
-        }
-        return redirect(url_for('index', success='تم تحديث جدول الحصص بنجاح!'))
-    return redirect(url_for('index', error='غير مسموح لك بتعديل الجدول، الصلاحية للسكرتيرة بريتا فقط!'))
+        SCHEDULES[key] = {'teacher': teacher, 'subject': subject}
+    return redirect(url_for('index', success='تم حفظ بيانات الجدول بنجاح!'))
+
+@app.route('/edit_schedule_item')
+def edit_schedule_item():
+    if session.get('user') == 'بريتا':
+        day = request.args.get('day')
+        class_name = request.args.get('class_name')
+        key = f"{day}-{class_name}"
+        if key in SCHEDULES:
+            # حذف السجل القديم لتسمية السكرتيرة بإعادة اختياره وتحديثه من الفورم
+            del SCHEDULES[key]
+    return redirect(url_for('index', success='قم بتعديل البيانات وإعادة حفظها من نموذج السكرتيرة أعلاه.'))
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
-    if session.get('user'):
-        sender = session.get('user')
-        recipients = request.form.getlist('recipients')
-        message_text = request.form.get('message_text')
-        
-        from datetime import datetime
-        current_time = datetime.now().strftime('%Y-%m-%d %H:%M')
-        
-        for rec in recipients:
-            MESSAGES.insert(0, {
-                'from': sender,
-                'to': rec,
-                'text': message_text,
-                'time': current_time
-            })
-        return redirect(url_for('index', success='تم إرسال الرسالة بنجاح!'))
+    if session.get('user') == 'خضر':
+        receivers_list = request.form.getlist('receivers')
+        text = request.form.get('msg_text')
+        receiver_str = ", ".join(receivers_list)
+        MESSAGES.insert(0, {'sender': 'المدير (خضر)', 'receiver': receiver_str, 'text': text})
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
