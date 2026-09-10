@@ -6,15 +6,16 @@ app.secret_key = 'hope_school_secret_key_2026'
 
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
-# --- بيانات النظام الأساسية والصلاحيات مقسمة ومنظمة ---
+# --- الإدارة (غير مربيين كمواد صفية) ---
 ROLE_MANAGER = 'خضر'        # المدير
 ROLE_SECRETARY = 'بريتا'    # السكرتيرة (تعديل الجدول)
 ROLE_SOCIAL = 'فؤاد'       # المرشد الاجتماعي
 
+# --- الطاقم والمعلمين (المربيين) ---
 STAFF_MALES = ['نزار', 'مايك', 'احمد', 'سابا', 'اندريس', 'وليد']
 STAFF_FEMALES = ['ليلى', 'لانا', 'نقول', 'ايفا', 'لورد', 'نوها', 'منال', 'خيلاء', 'دعاء', 'سلستي', 'نور', 'رزان', 'داليا', 'هايدي', 'نانسي', 'ميري', 'ريتا']
 
-# تجمع كافة الأسماء لتسجيل الدخول وكلمات السر
+# الترتيب العام الموحد لتسجيل الدخول
 ALL_STAFF = [ROLE_MANAGER, ROLE_SECRETARY, ROLE_SOCIAL] + STAFF_MALES + STAFF_FEMALES
 
 DAYS = ['السبت', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس']
@@ -45,24 +46,52 @@ HTML_TEMPLATE = """
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>نظام مراسلة وجداول مدرسة أمل</title>
     <style>
-        body { font-family: Tahoma, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 950px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        h1, h2 { color: #2c3e50; text-align: center; }
+        /* تثبيت الشاشة لمنع الحركة الأفقية يمين ويسار نهائياً */
+        html, body {
+            width: 100%;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        body { 
+            font-family: Tahoma, sans-serif; 
+            background-color: #f4f7f6; 
+            padding: 10px; 
+            color: #333; 
+            box-sizing: border-box;
+        }
+        .container { 
+            max-width: 100%; 
+            width: 100%;
+            margin: auto; 
+            background: white; 
+            padding: 15px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+            box-sizing: border-box;
+        }
+        h1, h2 { color: #2c3e50; text-align: center; font-size: 22px; }
         .btn { display: inline-block; background: #3498db; color: white; padding: 8px 15px; text-decoration: none; border-radius: 5px; margin: 3px; border: none; cursor: pointer; }
         .btn:hover { background: #2980b9; }
         .btn-danger { background: #e74c3c; }
-        .btn-danger:hover { background: #c0392b; }
         .btn-success { background: #27ae60; }
-        .btn-success:hover { background: #219653; }
-        table { width: 100%%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-top: 15px;
+        }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 14px; }
         th { background-color: #2c3e50; color: white; }
-        select, input, textarea { width: 100%%; padding: 8px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: Tahoma; }
+        
+        select, input, textarea { width: 100%; padding: 8px; margin: 5px 0 15px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: Tahoma; }
         select[multiple] { height: 130px; background: #f8fafc; }
-        .card { background: #ecf0f1; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+        .card { background: #ecf0f1; padding: 12px; border-radius: 6px; margin-bottom: 15px; box-sizing: border-box; }
         .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; }
         .success-msg { background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px; text-align: center; }
     </style>
@@ -87,8 +116,8 @@ HTML_TEMPLATE = """
             <!-- قسم تغيير كلمة السر -->
             <div class="card" style="background: #eef2f3;">
                 <h4>🔐 تغيير كلمة السر الخاصة بك (الافتراضية: 0000)</h4>
-                <form method="POST" action="/change_password" style="display: flex; gap: 10px; align-items: flex-end;">
-                    <div style="flex: 1; margin: 0;">
+                <form method="POST" action="/change_password" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px; margin: 0;">
                         <label>كلمة السر الجديدة:</label>
                         <input type="password" name="new_password" required placeholder="أدخل كلمة السر الجديدة">
                     </div>
@@ -97,7 +126,7 @@ HTML_TEMPLATE = """
             </div>
 
             <!-- لوحة تحكم السكرتيرة (بريتا) وحدها لتعديل الجدول -->
-            {% if session.get('user'] == 'بريتا' %}
+            {% if session.get('user') == 'بريتا' %}
                 <div class="card" style="background: #e8f8f5; border-right: 5px solid #27ae60;">
                     <h3>🛠️ لوحة تحكم السكرتيرة (توزيع الحصص وجداول المعلمين)</h3>
                     <form method="POST" action="/save_schedule">
@@ -117,11 +146,6 @@ HTML_TEMPLATE = """
 
                         <label>اختر المعلم:</label>
                         <select name="teacher" required>
-                            <optgroup label="الإدارة">
-                                <option value="خضر">خضر (المدير)</option>
-                                <option value="بريتا">بريتا (السكرتيرة)</option>
-                                <option value="فؤاد">فؤاد (المرشد الاجتماعي)</option>
-                            </optgroup>
                             <optgroup label="المربيين (ذكور)">
                                 {% for t in staff_males %}
                                     <option value="{{ t }}">{{ t }}</option>
@@ -141,7 +165,7 @@ HTML_TEMPLATE = """
                             {% endfor %}
                         </select>
 
-                        <button type="submit" class="btn btn-success">حفظ وتحديث الجدول</button>
+                        <button type="submit" class="btn btn-success" style="width: 100%;">حفظ وتحديث الجدول</button>
                     </form>
                 </div>
             {% endif %}
@@ -153,7 +177,15 @@ HTML_TEMPLATE = """
                     <label>اختر المرسل إليهم (حدد عدة أسماء بالضغط مع الاستمرار):</label>
                     <select name="recipients" multiple required>
                         <option value="ALL_STAFF">📢 جميع الهيئة التدريسية والإدارية</option>
-                        {% for t in all_staff %}
+                        <option value="خضر">خضر (المدير)</option>
+                        <option value="بريتا">بريتا (السكرتيرة)</option>
+                        <option value="فؤاد">فؤاد (المرشد الاجتماعي)</option>
+                        {% for t in staff_males %}
+                            {% if t != session.get('user') %}
+                                <option value="{{ t }}">{{ t }}</option>
+                            {% endif %}
+                        {% endfor %}
+                        {% for t in staff_females %}
                             {% if t != session.get('user') %}
                                 <option value="{{ t }}">{{ t }}</option>
                             {% endif %}
@@ -163,59 +195,63 @@ HTML_TEMPLATE = """
                     <label>نص الرسالة أو التنبيه:</label>
                     <textarea name="message_text" rows="3" required placeholder="اكتب رسالتك أو التنبيه هنا..."></textarea>
 
-                    <button type="submit" class="btn">إرسال الرسالة</button>
+                    <button type="submit" class="btn" style="width: 100%;">إرسال الرسالة</button>
                 </form>
             </div>
 
             <!-- صندوق الوارد -->
             <h2>📥 صندوق الوارد الخاص بك</h2>
-            <table>
-                <tr>
-                    <th>من المرسل</th>
-                    <th>محتوى الرسالة</th>
-                    <th>الوقت</th>
-                </tr>
-                {% for msg in messages %}
-                    {% if msg.to == session.get('user') or msg.to == 'ALL_STAFF' %}
-                        <tr>
-                            <td><strong>{{ msg.from }}</strong></td>
-                            <td>{{ msg.text }}</td>
-                            <td>{{ msg.time }}</td>
-                        </tr>
-                    {% endif %}
-                {% endfor %}
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <tr>
+                        <th>من المرسل</th>
+                        <th>محتوى الرسالة</th>
+                        <th>الوقت</th>
+                    </tr>
+                    {% for msg in messages %}
+                        {% if msg.to == session.get('user') or msg.to == 'ALL_STAFF' %}
+                            <tr>
+                                <td><strong>{{ msg.from }}</strong></td>
+                                <td>{{ msg.text }}</td>
+                                <td>{{ msg.time }}</td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </table>
+            </div>
 
             <!-- جدول الحصص العام -->
             <h2 style="margin-top: 30px;">📅 جدول الحصص المدرسي</h2>
-            <table>
-                <tr>
-                    <th>اليوم / الصف</th>
-                    {% for c in classes %}
-                        <th>{{ c }}</th>
-                    {% endfor %}
-                </tr>
-                {% for d in days %}
+            <div class="table-responsive">
+                <table>
                     <tr>
-                        <td><strong>{{ d }}</strong></td>
+                        <th>اليوم / الصف</th>
                         {% for c in classes %}
-                            <td>
-                                {% set key = d ~ '-' ~ c %}
-                                {% if key in schedules %}
-                                    <span style="color: #2980b9; font-weight: bold;">{{ schedules[key].teacher }}</span><br>
-                                    <span style="font-size: 12px; color: #555;">({{ schedules[key].subject }})</span>
-                                {% else %}
-                                    <span style="color: #999;">-</span>
-                                {% endif %}
-                            </td>
+                            <th>{{ c }}</th>
                         {% endfor %}
                     </tr>
-                {% endfor %}
-            </table>
+                    {% for d in days %}
+                        <tr>
+                            <td><strong>{{ d }}</strong></td>
+                            {% for c in classes %}
+                                <td>
+                                    {% set key = d ~ '-' ~ c %}
+                                    {% if key in schedules %}
+                                        <span style="color: #2980b9; font-weight: bold;">{{ schedules[key].teacher }}</span><br>
+                                        <span style="font-size: 11px; color: #555;">({{ schedules[key].subject }})</span>
+                                    {% else %}
+                                        <span style="color: #999;">-</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </table>
+            </div>
 
         {% else %}
             <!-- صفحة تسجيل الدخول -->
-            <div class="card" style="max-width: 350px; margin: 40px auto; text-align: center;">
+            <div class="card" style="max-width: 350px; margin: 20px auto; text-align: center;">
                 <h2>تسجيل الدخول</h2>
                 {% if error %}
                     <div class="error">{{ error }}</div>
@@ -224,11 +260,9 @@ HTML_TEMPLATE = """
                     <label>اختر اسمك (المستخدم):</label>
                     <select name="username" required>
                         <option value="">--- اختر اسم المستخدم ---</option>
-                        <optgroup label="الإدارة">
-                            <option value="خضر">خضر (المدير)</option>
-                            <option value="بريتا">بريتا (السكرتيرة)</option>
-                            <option value="فؤاد">فؤاد (المرشد الاجتماعي)</option>
-                        </optgroup>
+                        <option value="خضر">خضر (المدير)</option>
+                        <option value="بريتا">بريتا (السكرتيرة)</option>
+                        <option value="فؤاد">فؤاد (المرشد الاجتماعي)</option>
                         <optgroup label="المربيين (ذكور)">
                             {% for u in staff_males %}
                                 <option value="{{ u }}">{{ u }}</option>
@@ -297,7 +331,7 @@ def change_password():
 @app.route('/save_schedule', methods=['POST'])
 def save_schedule():
     # التعديل فقط للسكرتيرة بريتا
-    if session.get('user'] == ROLE_SECRETARY:
+    if session.get('user') == ROLE_SECRETARY:
         day = request.form.get('day')
         class_name = request.form.get('class_name')
         teacher = request.form.get('teacher')
