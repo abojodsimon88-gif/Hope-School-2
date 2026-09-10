@@ -4,7 +4,6 @@ from datetime import timedelta
 app = Flask(__name__)
 app.secret_key = 'hope_school_secret_key_2026'
 
-# جعل الجلسة تنتهي بمجرد إغلاق المتصفح لضمان طلب كلمة السر دائماً
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
 # --- بيانات النظام الأساسية والصلاحيات ---
@@ -15,7 +14,6 @@ ROLES = {
 }
 
 STAFF_MALES = ['نزار', 'مايك', 'احمد', 'سابا', 'اندريس', 'وليد']
-# أضفنا المعلمة "ليلى" ضمن قائمة المعلمات المربيات
 STAFF_FEMALES = ['ليلى', 'لانا', 'نقول', 'ايفا', 'لورد', 'نوها', 'منال', 'خيلاء', 'دعاء', 'سلستي', 'نور', 'رزان', 'داليا', 'هايدي', 'نانسي', 'ميري', 'ريتا']
 
 ALL_STAFF = list(ROLES.values()) + STAFF_MALES + STAFF_FEMALES
@@ -34,20 +32,15 @@ CLASSES = [
     'صف 11', 'صف 12'
 ]
 
-# المواد الدراسية
 SUBJECTS = [
     'إنجليزي', 'جغرافيا', 'تاريخ', 'رياضيات', 'رياضة', 
     'تكنولوجيا', 'عربي', 'علوم', 'تربية مسيحية', 'تربية إسلامية'
 ]
 
-# قاعدة بيانات مؤقتة في الذاكرة
-SCHEDULES = {} # مفتاحها "اليوم-الصف" -> يخزن (المربي والمادة)
-MESSAGES = []  # قائمة الرسائل
-
-# تخزين كلمات السر (افتراضياً الجميع كلمة سرهم '0000')
+SCHEDULES = {} 
+MESSAGES = []  
 PASSWORDS = {user: '0000' for user in ALL_STAFF}
 
-# --- الواجهات البرمجية (HTML داخلي مرتب) ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -106,10 +99,10 @@ HTML_TEMPLATE = """
                 </form>
             </div>
 
-            <!-- لوحة التحكم للمدير (إدارة الجداول) -->
-            {% if session.get('user') == 'خضر' %}
+            <!-- لوحة تحكم السكرتيرة (بريتا) - هي وحدها من تعدل جداول الحصص -->
+            {% if session.get('user') == 'بريتا' %}
                 <div class="card" style="background: #e8f8f5; border-right: 5px solid #27ae60;">
-                    <h3>🛠️ لوحة تحكم المدير (توزيع الحصص والجداول)</h3>
+                    <h3>🛠️ لوحة تحكم السكرتيرة (توزيع الحصص وجداول المعلمين)</h3>
                     <form method="POST" action="/save_schedule">
                         <label>اختر اليوم:</label>
                         <select name="day" required>
@@ -125,7 +118,7 @@ HTML_TEMPLATE = """
                             {% endfor %}
                         </select>
 
-                        <label>اختر المعلم المربي:</label>
+                        <label>اختر المعلم:</label>
                         <select name="teacher" required>
                             {% for t in all_staff %}
                                 <option value="{{ t }}">{{ t }}</option>
@@ -144,7 +137,7 @@ HTML_TEMPLATE = """
                 </div>
             {% endif %}
 
-            <!-- قسم إرسال الرسائل -->
+            <!-- قسم إرسال الرسائل (متاح للمدير خضر وباقي الطاقم حسب الحاجة) -->
             <div class="card">
                 <h3>💬 لوحة المراسلة الجماعية والفردية</h3>
                 <form method="POST" action="/send_message">
@@ -165,7 +158,7 @@ HTML_TEMPLATE = """
                 </form>
             </div>
 
-            <!-- صندوق الوارد (الرسائل الواردة للمستخدم) -->
+            <!-- صندوق الوارد -->
             <h2>📥 صندوق الوارد الخاص بك</h2>
             <table>
                 <tr>
@@ -184,7 +177,7 @@ HTML_TEMPLATE = """
                 {% endfor %}
             </table>
 
-            <!-- جدول الحصص العام -->
+            <!-- جدول الحصص العام (يشاهده المدير خضر والجميع بوضوح) -->
             <h2 style="margin-top: 30px;">📅 جدول الحصص المدرسي</h2>
             <table>
                 <tr>
@@ -280,7 +273,8 @@ def change_password():
 
 @app.route('/save_schedule', methods=['POST'])
 def save_schedule():
-    if session.get('user') == 'خضر':
+    # الصلاحية فقط للسكرتيرة (بريتا)
+    if session.get('user') == 'بريتا':
         day = request.form.get('day')
         class_name = request.form.get('class_name')
         teacher = request.form.get('teacher')
@@ -292,7 +286,7 @@ def save_schedule():
             'subject': subject
         }
         return redirect(url_for('index', success='تم تحديث جدول الحصص بنجاح!'))
-    return redirect(url_for('index', error='غير مسموح لك بهذا الإجراء!'))
+    return redirect(url_for('index', error='غير مسموح لك بتعديل الجدول، الصلاحية للسكرتيرة بريتا فقط!'))
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
