@@ -1,10 +1,9 @@
-from flask import Flask, render_template_string, request, redirect, url_for, session
+from flask import Flask, render_template_string, request, redirect, url_for, session, make_response
 from datetime import timedelta
 
 app = Flask(__name__)
 app.secret_key = 'hope_school_secret_key_2026'
 
-# جعل الجلسة تنتهي وتغلق بحال تم إغلاق المتصفح أو الخروج
 app.config['SESSION_PERMANENT'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
@@ -16,7 +15,6 @@ ROLES = {
 }
 
 STAFF_MALES = ['نزار', 'مايك', 'احمد', 'سابا', 'اندريس', 'وليد']
-# تمت إضافة المربية (ليلى) لقائمة المربيات كما طلبت
 STAFF_FEMALES = ['ليلى', 'لانا', 'نقول', 'ايفا', 'لورد', 'نوها', 'منال', 'خيلاء', 'دعاء', 'سلستي', 'نور', 'رزان', 'داليا', 'هايدي', 'نانسي', 'ميري', 'ريتا']
 
 ALL_STAFF = list(ROLES.values()) + STAFF_MALES + STAFF_FEMALES
@@ -35,20 +33,15 @@ CLASSES = [
     'صف 11', 'صف 12'
 ]
 
-# المواد الدراسية
 SUBJECTS = [
     'إنجليزي', 'جغرافيا', 'تاريخ', 'رياضيات', 'رياضة', 
     'تكنولوجيا', 'عربي', 'علوم', 'تربية مسيحية', 'تربية إسلامية'
 ]
 
-# قاعدة بيانات مؤقتة في الذاكرة
 SCHEDULES = {} 
 MESSAGES = []  
-
-# تخزين كلمات السر (افتراضياً الجميع كلمة سرهم '0000')
 PASSWORDS = {user: '0000' for user in ALL_STAFF}
 
-# --- الواجهات البرمجية (HTML داخلي مرتب مع منع الحركة الأفقية للموبايل) ---
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -289,17 +282,22 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def index():
-    return render_template_string(HTML_TEMPLATE, 
-                                  days=DAYS, 
-                                  classes=CLASSES, 
-                                  subjects=SUBJECTS,
-                                  staff_males=STAFF_MALES, 
-                                  staff_females=STAFF_FEMALES,
-                                  all_staff=ALL_STAFF,
-                                  schedules=SCHEDULES,
-                                  messages=MESSAGES,
-                                  error=request.args.get('error'),
-                                  success=request.args.get('success'))
+    # منع المتصفح من تخزين الصفحة مؤقتاً (Cache) لضمان طلب كلمة السر فوراً عند الخروج أو العودة
+    response = make_response(render_template_string(HTML_TEMPLATE, 
+                                                    days=DAYS, 
+                                                    classes=CLASSES, 
+                                                    subjects=SUBJECTS,
+                                                    staff_males=STAFF_MALES, 
+                                                    staff_females=STAFF_FEMALES,
+                                                    all_staff=ALL_STAFF,
+                                                    schedules=SCHEDULES,
+                                                    messages=MESSAGES,
+                                                    error=request.args.get('error'),
+                                                    success=request.args.get('success')))
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -323,7 +321,6 @@ def change_password():
 
 @app.route('/logout')
 def logout():
-    # مسح الجلسة بالكامل عند تسجيل الخروج لمنع البقاء في الحساب
     session.clear()
     return redirect(url_for('index'))
 
